@@ -1,0 +1,6 @@
+# OPTIONAL: merge this table into a working Codex config only once.
+# This is Codex TOML, not VS Code's mcp.json format.
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
+startup_timeout_sec = 30
+tool_timeout_sec = 90
