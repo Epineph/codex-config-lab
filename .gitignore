@@ -1,0 +1,12 @@
+# Lab runtime state can contain credentials and editor data.
+.local-state/
+
+# Generated diagnostics and configuration backups may contain private paths or
+# previous configuration contents.
+reports/
+config-lab-backups/
+
+# Python and test caches.
+__pycache__/
+*.py[cod]
+.pytest_cache/

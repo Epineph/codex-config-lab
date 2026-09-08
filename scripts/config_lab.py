@@ -131,22 +131,55 @@ def replace_with_backup(target: Path, data: bytes) -> Path:
   return backup
 
 
-def restore(backup: Path, write: bool) -> None:
-  manifest = json.loads((backup / "manifest.json").read_text())
-  target = Path(manifest["target"])
+def read_backup(backup: Path) -> tuple[Path, bytes, bool]:
+  for item in (backup, *backup.parents):
+    if item.is_symlink():
+      raise ValueError(f"Refusing symlink backup path: {item}")
+  if not backup.is_dir():
+    raise ValueError(f"Not a backup directory: {backup}")
+  manifest_path = backup / "manifest.json"
+  if manifest_path.is_symlink() or not manifest_path.is_file():
+    raise ValueError("Backup manifest must be a regular file")
+  manifest = json.loads(manifest_path.read_bytes())
+  if not isinstance(manifest, dict):
+    raise ValueError("Backup manifest must be a JSON object")
+  target_value = manifest.get("target")
+  existed = manifest.get("existed")
+  checksum = manifest.get("sha256")
+  if not isinstance(target_value, str):
+    raise ValueError("Backup manifest target must be a string")
+  if type(existed) is not bool:
+    raise ValueError("Backup manifest existed must be a boolean")
+  checksum_valid = isinstance(checksum, str) and re.fullmatch(
+    r"[0-9a-f]{64}", checksum,
+  )
+  if not checksum_valid:
+    raise ValueError("Backup manifest sha256 must be a lowercase digest")
+  target = Path(target_value)
   if not target.is_absolute() or target.name != "config.toml":
     raise ValueError("Invalid backup target")
-  check_target(target)
-  data = (backup / "config.toml").read_bytes() if manifest["existed"] else b""
-  if hashlib.sha256(data).hexdigest() != manifest["sha256"]:
+  source = backup / "config.toml"
+  if existed:
+    if source.is_symlink() or not source.is_file():
+      raise ValueError("Backup config must be a regular file")
+    data = source.read_bytes()
+  else:
+    data = b""
+  if hashlib.sha256(data).hexdigest() != checksum:
     raise ValueError("Backup checksum mismatch")
+  return target, data, existed
+
+
+def restore(backup: Path, write: bool) -> None:
+  target, data, existed = read_backup(backup)
+  check_target(target)
   print(f"Restore target: {target}")
   print("Existing candidate will be backed up before restoration.")
   if not write:
     print("Preview only; add --write to restore.")
     return
   saved = replace_with_backup(target, data)
-  if not manifest["existed"]:
+  if not existed:
     target.unlink()
   print(f"Restored. Previous candidate backup: {saved}")
 

@@ -80,6 +80,28 @@ class ConfigurationTests(unittest.TestCase):
         lab.restore(backup, True)
       self.assertEqual(target.read_bytes(), b"# candidate\n")
 
+  def test_invalid_backup_manifest_does_not_touch_target(self):
+    with tempfile.TemporaryDirectory() as directory:
+      target = Path(directory) / "config.toml"
+      target.write_bytes(b"# original\n")
+      backup = lab.replace_with_backup(target, b"# candidate\n")
+      (backup / "manifest.json").write_text("[]")
+      with self.assertRaisesRegex(ValueError, "manifest"):
+        lab.restore(backup, True)
+      self.assertEqual(target.read_bytes(), b"# candidate\n")
+
+  def test_symlinked_backup_refused(self):
+    with tempfile.TemporaryDirectory() as directory:
+      root = Path(directory)
+      target = root / "config.toml"
+      target.write_bytes(b"# original\n")
+      backup = lab.replace_with_backup(target, b"# candidate\n")
+      link = root / "linked-backup"
+      link.symlink_to(backup, target_is_directory=True)
+      with self.assertRaisesRegex(ValueError, "symlink"):
+        lab.restore(link, True)
+      self.assertEqual(target.read_bytes(), b"# candidate\n")
+
   def test_symlink_refused(self):
     with tempfile.TemporaryDirectory() as directory:
       original = Path(directory) / "original.toml"
